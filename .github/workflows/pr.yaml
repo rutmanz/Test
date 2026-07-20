@@ -30,4 +30,3 @@ jobs:
           PR_URL: ${{ github.event.pull_request.html_url }}
           PR_ACTION: ${{ github.event.action }}
           PR_USER: ${{ github.event.pull_request.user.login }}
-          PR_DATA: ${{ github.event }}
