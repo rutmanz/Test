@@ -1,5 +1,6 @@
 const webhookUrl = process.env.SLACK_WEBHOOK_URL;
 const github = JSON.parse(process.env.GITHUB_DATA ?? "{}")
+// const github =
 
 if (!webhookUrl) {
   console.error("SLACK_WEBHOOK_URL is required");
@@ -10,7 +11,7 @@ function capitalize(str: string) {
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
-console.log(github)
+console.log(JSON.stringify(github))
 
 
 const payload = {
@@ -20,7 +21,7 @@ const payload = {
       "type": "container",
       "icon": {
         "type": "image",
-        "image_url": github.event.pull_request.user.avatar_url,
+        "image_url": github.event.sender.avatar_url,
         "alt_text": "Profile Picture"
       },
       "title": {
