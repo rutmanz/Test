@@ -12,6 +12,23 @@ function capitalize(str: string) {
 
 console.log(JSON.stringify(github))
 
+// Leaving a review with multiple comments causes the action to run for each comment;
+// once with action "submitted", and the rest with "edited". Ignore edited and manually
+// search for comments.
+if (github.event.action === "edited") process.exit(0)
+
+// get comments
+const url = `https://api.github.com/repos/${github.repository_owner}/${github.event.repository.name}/pulls/${github.event.pull_request.number}/reviews/${github.event.review.id}/comments?per_page=100`
+fetch(
+    url,
+    {
+        headers: {
+            Authorization: `Bearer ${github.token}`,
+            Accept: "application/vnd.github+json"
+        }
+    }
+).then(res => console.log(JSON.stringify(res)))
+
 // States: changes_requested, approved, commented, dismissed, pending
 
 let image_url;
@@ -35,7 +52,7 @@ const payload = {
             "width": "full",
             "title": {
                 "type": "plain_text",
-                "text": `#${github.event.number} - ${github.event.review.state}`
+                "text": `#${github.event.pull_request.number} - ${github.event.review.state}`
             },
             "subtitle": {
                 "type": "plain_text",
