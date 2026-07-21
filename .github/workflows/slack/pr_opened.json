@@ -1,4 +1,5 @@
 {
+  "channel": "C09BLR4EG7M",
   "text": "PR #${{ github.event.number }} ${{ github.event.action }} by ${{ github.event.sender }}: ${{github.event.pull_request.title}}",
   "blocks": [
     {
