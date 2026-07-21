@@ -1,52 +1,63 @@
-import { IncomingWebhook } from "@slack/webhook";
-import type { IncomingWebhookSendArguments } from "@slack/webhook";
-import type { ActionsBlock, ContextBlock, SectionBlock } from "@slack/types";
-
 const webhookUrl = process.env.SLACK_WEBHOOK_URL;
-const prNumber = process.env.PR_NUMBER;
-const prTitle = process.env.PR_TITLE;
-const prUrl = process.env.PR_URL;
-const prAction = process.env.PR_ACTION ?? "opened";
-const prUser = process.env.PR_USER;
-const repo = process.env.GITHUB_REPOSITORY;
-const sha = process.env.GITHUB_SHA?.slice(0, 7);
+const github = JSON.parse(process.env.GITHUB_DATA ?? "{}")
+// const github =
 
 if (!webhookUrl) {
   console.error("SLACK_WEBHOOK_URL is required");
   process.exit(1);
 }
 
-const verb = prAction.charAt(0).toUpperCase() + prAction.slice(1);
+function capitalize(str: string) {
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
 
-const payload: IncomingWebhookSendArguments = {
-  text: `PR #${prNumber} ${prAction} by @${prUser}: ${prTitle}`,
-  blocks: [
+console.log(JSON.stringify(github))
+
+
+const payload = {
+  "text": `PR #${ github.event.number } ${github.event.action} by ${ github.event.sender }: ${ github.event.pull_request.title }"`,
+  "blocks": [
     {
-      type: "section",
-      text: {
-        type: "mrkdwn",
-        text: `*<${prUrl}|PR #${prNumber}: ${prTitle}>*\n${verb} by *@${prUser}* in \`${repo}\``,
+      "type": "container",
+      "icon": {
+        "type": "image",
+        "image_url": github.event.sender.avatar_url,
+        "alt_text": "Profile Picture"
       },
-    } satisfies SectionBlock,
-    {
-      type: "context",
-      elements: [{ type: "mrkdwn", text: `Commit: \`${sha}\`` }],
-    } satisfies ContextBlock,
-    {
-      type: "actions",
-      elements: [
+      "title": {
+        "type": "mrkdwn",
+        "text": `**#${ github.event.number }** ${github.event.pull_request.title}`,
+        "verbatim": false
+      },
+      "subtitle": {
+        "type": "mrkdwn",
+        "text": `${ capitalize(github.event.pull_request.merged ? 'merged' : github.event.action) } by ${ github.event.pull_request.user.login }`,
+        "verbatim": false
+      },
+      "body": {
+        "type": "mrkdwn",
+        "text": `${ github.event.pull_request.body }`,
+        "verbatim": false
+      },
+      "actions": [
         {
-          type: "button",
-          text: { type: "plain_text", text: "View PR", emoji: true },
-          url: prUrl,
-          style: "primary",
-          action_id: "view_pr",
-        },
-      ],
-    } satisfies ActionsBlock,
-  ],
-};
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "Open",
+            "emoji": true
+          },
+          "url": github.event.pull_request.url
+        }
+      ]
+    }
+  ]
+}
 
-const webhook = new IncomingWebhook(webhookUrl);
-await webhook.send(payload);
-console.log("Slack notification sent");
+fetch(webhookUrl, {
+  method: 'POST',
+  body: JSON.stringify(payload),
+  headers: {
+    'Content-Type': 'application/json'
+  }
+}).then((res) => console.log("Slack notification sent", res))

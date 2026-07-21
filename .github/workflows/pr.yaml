@@ -18,15 +18,11 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Checkout the repo
-        uses: actions/checkout@v7
-        with:
-          persist-credentials: false
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
 
-      - name: Forward a saved message
-        uses: slackapi/slack-github-action@v4.0.0
-        with:
-          payload-file-path: "./.github/workflows/slack/pr_opened.json"
-          payload-templated: true
-          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
-          webhook-type: incoming-webhook
+      - name: Send Slack notification
+        run: bun .github/workflows/slack/pr_opened.ts
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          GITHUB_DATA: ${{ toJSON(github) }}
