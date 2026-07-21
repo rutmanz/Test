@@ -17,18 +17,6 @@ console.log(JSON.stringify(github))
 // search for comments.
 if (github.event.action === "edited") process.exit(0)
 
-// get comments
-const url = `https://api.github.com/repos/${github.repository_owner}/${github.event.repository.name}/pulls/${github.event.pull_request.number}/reviews/${github.event.review.id}/comments?per_page=100`
-fetch(
-    url,
-    {
-        headers: {
-            Authorization: `Bearer ${github.token}`,
-            Accept: "application/vnd.github+json"
-        }
-    }
-).then(res => console.log(JSON.stringify(res)))
-
 // States: changes_requested, approved, commented, dismissed, pending
 
 let image_url;
@@ -85,10 +73,36 @@ const payload = {
     ]
 }
 
-fetch(webhookUrl, {
-    method: 'POST',
-    body: JSON.stringify(payload),
-    headers: {
-        'Content-Type': 'application/json'
-    }
-}).then((res) => console.log("Slack notification sent", res))
+const send = async () => {
+    const res = await fetch(webhookUrl, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+
+    console.log("Slack notification sent", await res.json())
+
+    // get comments
+    const repo_owner = github.repository_owner
+    const repo_name = github.event.repository.name
+    const pr_number = github.event.pull_request.number
+    const review_id = github.event.review.id
+
+    const url = `https://api.github.com/repos/${repo_owner}/${repo_name}/pulls/${pr_number}/reviews/${review_id}/comments?per_page=100`
+    const res2 = await fetch(
+        url,
+        {
+            headers: {
+                Authorization: `Bearer ${github.token}`,
+                Accept: "application/vnd.github+json",
+                "X-GitHub-Api-Version": "2026-03-10"
+            }
+        }
+    )
+
+    console.log(JSON.stringify(await res2.json()))
+}
+
+send()
