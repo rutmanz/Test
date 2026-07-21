@@ -18,15 +18,14 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Checkout the repo
-        uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-
       - name: Forward a saved message
+        id: send
         uses: slackapi/slack-github-action@v4.0.0
         with:
           payload-file-path: "./.github/workflows/slack/pr_opened.json"
           payload-templated: true
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
           webhook-type: incoming-webhook
+
+      - name: Print response
+        run: echo '${{ toJSON(steps.send.outputs) }}'
