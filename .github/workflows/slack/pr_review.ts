@@ -82,7 +82,7 @@ const send = async () => {
         }
     })
 
-    console.log("Slack notification sent", await res.json())
+    console.log("Slack notification sent", await res.text())
 
     // get comments
     const repo_owner = github.repository_owner
