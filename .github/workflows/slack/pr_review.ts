@@ -15,7 +15,7 @@ console.log(JSON.stringify(github))
 // States: changes_requested, approved, commented, dismissed, pending
 
 let image_url;
-switch (github.review.state) {
+switch (github.event.review.state) {
     case "approved":
         image_url = "https://github.com/synthesis-adsk/github-icons/blob/main/icons/check-green.png?raw=true"
         break
@@ -35,23 +35,23 @@ const payload = {
             "width": "full",
             "title": {
                 "type": "plain_text",
-                "text": `#${github.event.number} - ${github.review.state}`
+                "text": `#${github.event.number} - ${github.event.review.state}`
             },
             "subtitle": {
                 "type": "plain_text",
-                "text": `${capitalize(github.review.state)} by ${github.actor}`
+                "text": `${capitalize(github.event.review.state)} by ${github.actor}`
             },
             "icon": {
                 "type": "image",
                 "image_url": image_url,
-                "alt_text": `Review ${github.event.action}`
+                "alt_text": `Review ${github.event.review.state}`
             },
             "child_blocks": [
                 {
                     "type": "section",
                     "text": {
                         "type": "mrkdwn",
-                        "text": `${github.review.body}`
+                        "text": `${github.event.review.body}`
                     },
                     "accessory": {
                         "type": "button",
@@ -60,7 +60,7 @@ const payload = {
                             "text": "Visit",
                             "emoji": true
                         },
-                        "url": github.review.html_url
+                        "url": github.event.review.html_url
                     }
                 }
             ]
