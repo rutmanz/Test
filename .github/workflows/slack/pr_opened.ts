@@ -1,63 +1,84 @@
 const webhookUrl = process.env.SLACK_WEBHOOK_URL;
 const github = JSON.parse(process.env.GITHUB_DATA ?? "{}")
-// const github =
 
 if (!webhookUrl) {
-  console.error("SLACK_WEBHOOK_URL is required");
-  process.exit(1);
+    console.error("SLACK_WEBHOOK_URL is required");
+    process.exit(1);
 }
 
 function capitalize(str: string) {
-  return str.charAt(0).toUpperCase() + str.slice(1);
+    return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
 console.log(JSON.stringify(github))
 
+// Actions: opened, closed, merged, reopened, assigned, unassigned, labeled, unlabeled
 
-const payload = {
-  "text": `PR #${ github.event.number } ${github.event.action} by ${ github.event.sender }: ${ github.event.pull_request.title }"`,
-  "blocks": [
-    {
-      "type": "container",
-      "icon": {
-        "type": "image",
-        "image_url": github.event.sender.avatar_url,
-        "alt_text": "Profile Picture"
-      },
-      "title": {
-        "type": "mrkdwn",
-        "text": `**#${ github.event.number }** ${github.event.pull_request.title}`,
-        "verbatim": false
-      },
-      "subtitle": {
-        "type": "mrkdwn",
-        "text": `${ capitalize(github.event.pull_request.merged ? 'merged' : github.event.action) } by ${ github.event.pull_request.user.login }`,
-        "verbatim": false
-      },
-      "body": {
-        "type": "mrkdwn",
-        "text": `${ github.event.pull_request.body }`,
-        "verbatim": false
-      },
-      "actions": [
-        {
-          "type": "button",
-          "text": {
-            "type": "plain_text",
-            "text": "Open",
-            "emoji": true
-          },
-          "url": github.event.pull_request.url
-        }
-      ]
-    }
-  ]
+let image_url;
+switch (github.event.action) {
+    case "opened":
+    case "reopened":
+        image_url = "https://github.com/synthesis-adsk/github-icons/blob/main/icons/pull-request-green.png?raw=true"
+        break
+    case "merged":
+        image_url = "https://github.com/synthesis-adsk/github-icons/blob/main/icons/pull-request-merged-purple.png?raw=true"
+        break
+    case "closed":
+        image_url = "https://github.com/synthesis-adsk/github-icons/blob/main/icons/pull-request-closed-red.png?raw=true"
+        break
 }
 
+const regexp = /SYNTH-\d+/g
+const jira_matches = github.event.pull_request.title.match(regexp)
+    ?? github.event.pull_request.body.match(regexp)
+    ?? []
+
+const payload = {
+    "blocks": [
+        {
+            "type": "container",
+            "width": "full",
+            "title": {
+                "type": "plain_text",
+                "text": `#${github.event.number} - ${github.event.pull_request.title}`
+            },
+            "subtitle": {
+                "type": "plain_text",
+                "text": `${capitalize(github.event.action)} by ${github.actor}`
+            },
+            "icon": {
+                "type": "image",
+                "image_url": image_url,
+                "alt_text": `Pull Request ${github.event.action}`
+            },
+            "child_blocks": [
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": `${jira_matches.length >= 1 ? 'Jira: `' + jira_matches[0] + '`' : 'No Jira ticket attached'}`
+                    },
+                    "accessory": {
+                        "type": "button",
+                        "text": {
+                            "type": "plain_text",
+                            "text": "Visit",
+                            "emoji": true
+                        },
+                        "url": github.event.pull_request.url
+                    }
+                }
+            ]
+        }
+    ]
+}
+
+console.log('PAYLOAD', JSON.stringify(payload))
+
 fetch(webhookUrl, {
-  method: 'POST',
-  body: JSON.stringify(payload),
-  headers: {
-    'Content-Type': 'application/json'
-  }
+    method: 'POST',
+    body: JSON.stringify(payload),
+    headers: {
+        'Content-Type': 'application/json'
+    }
 }).then((res) => console.log("Slack notification sent", res))
