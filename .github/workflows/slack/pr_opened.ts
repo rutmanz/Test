@@ -6,25 +6,31 @@ if (!webhookUrl) {
   process.exit(1);
 }
 
+function capitalize(str: string) {
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+console.log(github)
 
 
 const payload = {
   "text": `PR #${ github.event.number } ${github.event.action} by ${ github.event.sender }: ${ github.event.pull_request.title }"`,
   "blocks": [
     {
-      "type": "card",
-      "slack_icon": {
-        "type": "icon",
-        "name": "lightbulb"
+      "type": "container",
+      "icon": {
+        "type": "image",
+        "image_url": github.event.pull_request.user.avatar_url,
+        "alt_text": "Profile Picture"
       },
       "title": {
         "type": "mrkdwn",
-        "text": `#${ github.event.number } ${github.event.pull_request.title}`,
+        "text": `**#${ github.event.number }** ${github.event.pull_request.title}`,
         "verbatim": false
       },
       "subtitle": {
         "type": "mrkdwn",
-        "text": `${ github.event.pull_request.merged ? 'merged' : github.event.action } by ${ github.event.pull_request.user.login }`,
+        "text": `${ capitalize(github.event.pull_request.merged ? 'merged' : github.event.action) } by ${ github.event.pull_request.user.login }`,
         "verbatim": false
       },
       "body": {
