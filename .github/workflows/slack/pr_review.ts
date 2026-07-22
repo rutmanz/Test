@@ -28,36 +28,49 @@ switch (github.event.review.state) {
     case "changes_requested":
         image_url = "https://github.com/synthesis-adsk/github-icons/blob/main/icons/file-diff-red.png?raw=true"
         break
+    case "dismissed":
+        image_url = "https://github.com/synthesis-adsk/github-icons/blob/main/icons/x-gray.png?raw=true"
+        break
     case "commented":
     default:
         image_url = "https://github.com/synthesis-adsk/github-icons/blob/main/icons/comment-gray.png?raw=true"
         break
 }
 
+const actor = github.actor
+const actor_id = github.actor_id
+const pr_num = github.event.pull_request.number
+const pr_author = github.event.pull_request.user.login
+const review_state = github.event.review.state
+const review_body = github.event.review.body
+const review_url = github.event.review.html_url
+const review_author = github.event.review.user.login
+
 const getPayload = (comments: any[]) => {
+    const title = `#${pr_num} (${pr_author}) - ${review_state === "dismissed" ? `dismissed review from ${review_author}` : review_state}`
     let blocks: any[] = [
         {
             "type": "container",
             "width": "full",
             "title": {
                 "type": "plain_text",
-                "text": `#${github.event.pull_request.number} (${github.event.pull_request.user.login}) - ${github.event.review.state}`
+                "text": title
             },
             "subtitle": {
                 "type": "plain_text",
-                "text": `${capitalize(github.event.review.state)} by ${github.actor}`
+                "text": `${capitalize(review_state)} by ${actor}`
             },
             "icon": {
                 "type": "image",
                 "image_url": image_url,
-                "alt_text": `Review ${github.event.review.state}`
+                "alt_text": `Review ${review_state}`
             },
             "child_blocks": [
                 {
                     "type": "section",
                     "text": {
                         "type": "mrkdwn",
-                        "text": github.event.review.body,
+                        "text": review_body,
                     },
                     "accessory": {
                         "type": "button",
@@ -66,7 +79,7 @@ const getPayload = (comments: any[]) => {
                             "text": "Visit",
                             "emoji": true
                         },
-                        "url": github.event.review.html_url
+                        "url": review_url
                     }
                 }
             ]
@@ -78,12 +91,12 @@ const getPayload = (comments: any[]) => {
         "elements": [
             {
                 "type": "image",
-                "image_url": `https://avatars.githubusercontent.com/u/${github.actor_id}`,
+                "image_url": `https://avatars.githubusercontent.com/u/${actor_id}`,
                 "alt_text": "images"
             },
             {
                 "type": "mrkdwn",
-                "text": `*${github.actor}*`
+                "text": `*${actor}*`
             }
         ]
     }
