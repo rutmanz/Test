@@ -70,7 +70,7 @@ const getPayload = (comments: any[]) => {
                     "type": "section",
                     "text": {
                         "type": "mrkdwn",
-                        "text": review_body,
+                        "text": review_body ?? "_N/A_",
                     },
                     "accessory": {
                         "type": "button",
@@ -172,6 +172,8 @@ const send = async () => {
     console.log("COMMENTS", JSON.stringify(comments))
 
     const payload = getPayload(comments ?? [])
+
+    console.log('PAYLOAD', JSON.stringify(payload))
 
     const slack_res = await fetch(webhookUrl, {
         method: 'POST',
