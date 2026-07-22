@@ -19,7 +19,8 @@ if (github.event.action === "edited") process.exit(0)
 
 // States: changes_requested, approved, commented, dismissed, pending
 
-let image_url;
+let image_url = "https://github.com/synthesis-adsk/github-icons/blob/main/icons/comment-gray.png?raw=true";
+
 switch (github.event.review.state) {
     case "approved":
         image_url = "https://github.com/synthesis-adsk/github-icons/blob/main/icons/check-green.png?raw=true"
@@ -33,14 +34,14 @@ switch (github.event.review.state) {
         break
 }
 
-const payload = {
-    "blocks": [
+const getPayload = (comments: any[]) => {
+    let blocks: any[] = [
         {
             "type": "container",
             "width": "full",
             "title": {
                 "type": "plain_text",
-                "text": `#${github.event.pull_request.number} - ${github.event.review.state}`
+                "text": `#${github.event.pull_request.number} (${github.event.pull_request.user.login}) - ${github.event.review.state}`
             },
             "subtitle": {
                 "type": "plain_text",
@@ -56,7 +57,7 @@ const payload = {
                     "type": "section",
                     "text": {
                         "type": "mrkdwn",
-                        "text": `${github.event.review.body}`
+                        "text": github.event.review.body,
                     },
                     "accessory": {
                         "type": "button",
@@ -71,19 +72,63 @@ const payload = {
             ]
         }
     ]
+
+    if (comments.length > 0) {
+        blocks.push(
+            {
+                "type": "container",
+                "title": {
+                    "type": "plain_text",
+                    "text": `Comments (${comments.length})`
+                },
+                "width": "full",
+                "is_collapsible": true,
+                "default_collapsed": false,
+                "child_blocks": comments.map(comment => ({
+                    "type": "callout",
+                    "background_color": "gray",
+                    "child_blocks": [
+                        {
+                            "type": "section",
+                            "text": {
+                                "type": "mrkdwn",
+                                "text": `*File: _${comment.path}_*\n\n${comment.body}`
+                            },
+                            "accessory": {
+                                "type": "button",
+                                "text": {
+                                    "type": "plain_text",
+                                    "text": "View",
+                                    "emoji": true
+                                },
+                                "url": comment.url
+                            }
+                        }
+                    ]
+                }))
+            })
+    }
+    blocks.push({
+        "type": "context",
+        "elements": [
+            {
+                "type": "image",
+                "image_url": `https://avatars.githubusercontent.com/u/${github.actor_id}`,
+                "alt_text": "images"
+            },
+            {
+                "type": "mrkdwn",
+                "text": `*${github.actor}*`
+            }
+        ]
+    })
+
+    return {
+        blocks
+    }
 }
 
 const send = async () => {
-    const res = await fetch(webhookUrl, {
-        method: 'POST',
-        body: JSON.stringify(payload),
-        headers: {
-            'Content-Type': 'application/json'
-        }
-    })
-
-    console.log("Slack notification sent", await res.text())
-
     // get comments
     const repo_owner = github.repository_owner
     const repo_name = github.event.repository.name
@@ -91,7 +136,7 @@ const send = async () => {
     const review_id = github.event.review.id
 
     const url = `https://api.github.com/repos/${repo_owner}/${repo_name}/pulls/${pr_number}/reviews/${review_id}/comments?per_page=100`
-    const res2 = await fetch(
+    const comments_res = await fetch(
         url,
         {
             headers: {
@@ -102,7 +147,21 @@ const send = async () => {
         }
     )
 
-    console.log(JSON.stringify(await res2.json()))
+    const comments = await comments_res.json()
+    console.log("COMMENTS", JSON.stringify(comments))
+
+    const payload = getPayload(comments)
+
+    const slack_res = await fetch(webhookUrl, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+
+    console.log("Slack notification sent", await slack_res.text())
+
 }
 
 send()
