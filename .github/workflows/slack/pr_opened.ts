@@ -10,15 +10,13 @@ function capitalize(str: string) {
     return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
-console.log(JSON.stringify(github))
-
 // Actions: opened, closed, merged, reopened, assigned, unassigned, labeled, unlabeled
 
 let image_url;
 switch (github.event.action) {
     case "opened":
     case "reopened":
-        image_url = "https://github.com/synthesis-adsk/github-icons/blob/main/icons/pull-request-green.png?raw=true"
+        image_url = `https://github.com/synthesis-adsk/github-icons/blob/main/icons/${github.event.pull_request.draft ? "pull-request-draft-gray" : "pull-request-green"}.png?raw=true`
         break
     case "merged":
         image_url = "https://github.com/synthesis-adsk/github-icons/blob/main/icons/pull-request-merged-purple.png?raw=true"
@@ -44,7 +42,7 @@ const payload = {
             },
             "subtitle": {
                 "type": "plain_text",
-                "text": `${capitalize(github.event.action)} by ${github.actor}`
+                "text": `${github.event.pull_request.draft ? 'Draft ' : ''}${capitalize(github.event.action)} by ${github.actor}`
             },
             "icon": {
                 "type": "image",
@@ -65,7 +63,7 @@ const payload = {
                             "text": "Visit",
                             "emoji": true
                         },
-                        "url": github.event.pull_request.url
+                        "url": github.event.pull_request.html_url
                     }
                 }
             ]
@@ -73,12 +71,16 @@ const payload = {
     ]
 }
 
-console.log('PAYLOAD', JSON.stringify(payload))
+const send = async () => {
+    const slack_res = await fetch(webhookUrl, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
 
-fetch(webhookUrl, {
-    method: 'POST',
-    body: JSON.stringify(payload),
-    headers: {
-        'Content-Type': 'application/json'
-    }
-}).then((res) => console.log("Slack notification sent", res))
+    console.log("Slack notification sent:", await slack_res.text())
+}
+
+send()

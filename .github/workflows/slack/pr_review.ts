@@ -18,8 +18,6 @@ function titleCase(str: string) {
         .join(" ");
 }
 
-console.log(JSON.stringify(github))
-
 // Leaving a review with multiple comments causes the action to run for each comment;
 // once with action "submitted", and the rest with "edited". Ignore edited and manually
 // search for comments.
@@ -176,11 +174,7 @@ const send = async () => {
         comments = await comments_res.json()
     }
 
-    console.log("COMMENTS", JSON.stringify(comments))
-
     const payload = getPayload(comments ?? [])
-
-    console.log('PAYLOAD', JSON.stringify(payload))
 
     const slack_res = await fetch(webhookUrl, {
         method: 'POST',
@@ -190,7 +184,7 @@ const send = async () => {
         }
     })
 
-    console.log("Slack notification sent", await slack_res.text())
+    console.log("Slack notification sent:", await slack_res.text())
 }
 
 send()
