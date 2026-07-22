@@ -78,7 +78,7 @@ const getPayload = (comments: any[]) => {
                     "type": "section",
                     "text": {
                         "type": "mrkdwn",
-                        "text": review_body ?? "_N/A_",
+                        "text": review_body ?? "_No body provided_",
                     },
                     "accessory": {
                         "type": "button",
