@@ -112,7 +112,7 @@ const getPayload = (comments: any[]) => {
                 "width": "full",
                 "is_collapsible": true,
                 "default_collapsed": true,
-                "child_blocks": comments.map(comment => ({
+                "child_blocks": comments.flatMap(comment => ([{
                     "type": "callout",
                     "background_color": "gray",
                     "child_blocks": [
@@ -131,10 +131,9 @@ const getPayload = (comments: any[]) => {
                                 },
                                 "url": comment.html_url
                             }
-                        },
-                        ctxt
+                        }
                     ]
-                }))
+                }, ctxt]))
             })
     }
     blocks.push(ctxt)
