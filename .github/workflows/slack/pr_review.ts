@@ -73,6 +73,21 @@ const getPayload = (comments: any[]) => {
         }
     ]
 
+    const ctxt = {
+        "type": "context",
+        "elements": [
+            {
+                "type": "image",
+                "image_url": `https://avatars.githubusercontent.com/u/${github.actor_id}`,
+                "alt_text": "images"
+            },
+            {
+                "type": "mrkdwn",
+                "text": `*${github.actor}*`
+            }
+        ]
+    }
+
     if (comments.length > 0) {
         blocks.push(
             {
@@ -103,25 +118,13 @@ const getPayload = (comments: any[]) => {
                                 },
                                 "url": comment.html_url
                             }
-                        }
+                        },
+                        ctxt
                     ]
                 }))
             })
     }
-    blocks.push({
-        "type": "context",
-        "elements": [
-            {
-                "type": "image",
-                "image_url": `https://avatars.githubusercontent.com/u/${github.actor_id}`,
-                "alt_text": "images"
-            },
-            {
-                "type": "mrkdwn",
-                "text": `*${github.actor}*`
-            }
-        ]
-    })
+    blocks.push(ctxt)
 
     return {
         blocks
@@ -129,28 +132,33 @@ const getPayload = (comments: any[]) => {
 }
 
 const send = async () => {
-    // get comments
-    const repo_owner = github.repository_owner
-    const repo_name = github.event.repository.name
-    const pr_number = github.event.pull_request.number
-    const review_id = github.event.review.id
+    let comments;
 
-    const url = `https://api.github.com/repos/${repo_owner}/${repo_name}/pulls/${pr_number}/reviews/${review_id}/comments?per_page=100`
-    const comments_res = await fetch(
-        url,
-        {
-            headers: {
-                Authorization: `Bearer ${github.token}`,
-                Accept: "application/vnd.github+json",
-                "X-GitHub-Api-Version": "2026-03-10"
+    if (github.event.action !== "dismissed") {
+        // get comments
+        const repo_owner = github.repository_owner
+        const repo_name = github.event.repository.name
+        const pr_number = github.event.pull_request.number
+        const review_id = github.event.review.id
+
+        const url = `https://api.github.com/repos/${repo_owner}/${repo_name}/pulls/${pr_number}/reviews/${review_id}/comments?per_page=100`
+        const comments_res = await fetch(
+            url,
+            {
+                headers: {
+                    Authorization: `Bearer ${github.token}`,
+                    Accept: "application/vnd.github+json",
+                    "X-GitHub-Api-Version": "2026-03-10"
+                }
             }
-        }
-    )
+        )
 
-    const comments = await comments_res.json()
+        comments = await comments_res.json()
+    }
+
     console.log("COMMENTS", JSON.stringify(comments))
 
-    const payload = getPayload(comments)
+    const payload = getPayload(comments ?? [])
 
     const slack_res = await fetch(webhookUrl, {
         method: 'POST',
@@ -161,7 +169,6 @@ const send = async () => {
     })
 
     console.log("Slack notification sent", await slack_res.text())
-
 }
 
 send()
