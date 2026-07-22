@@ -10,6 +10,14 @@ function capitalize(str: string) {
     return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
+function titleCase(str: string) {
+    return str
+        .split("_")
+        .filter(Boolean)
+        .map(capitalize)
+        .join(" ");
+}
+
 console.log(JSON.stringify(github))
 
 // Leaving a review with multiple comments causes the action to run for each comment;
@@ -47,7 +55,7 @@ const review_url = github.event.review.html_url
 const review_author = github.event.review.user.login
 
 const getPayload = (comments: any[]) => {
-    const title = `#${pr_num} (${pr_author}) - ${review_state === "dismissed" ? `dismissed review from ${review_author}` : review_state}`
+    const title = `#${pr_num} (${pr_author}) - ${review_state === "dismissed" ? `dismissed review from ${review_author}` : titleCase(review_state)}`
     let blocks: any[] = [
         {
             "type": "container",
@@ -58,12 +66,12 @@ const getPayload = (comments: any[]) => {
             },
             "subtitle": {
                 "type": "plain_text",
-                "text": `${capitalize(review_state)} by ${actor}`
+                "text": `${titleCase(review_state)} by ${actor}`
             },
             "icon": {
                 "type": "image",
                 "image_url": image_url,
-                "alt_text": `Review ${review_state}`
+                "alt_text": `Review ${titleCase(review_state)}`
             },
             "child_blocks": [
                 {
