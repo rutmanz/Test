@@ -83,7 +83,7 @@ const getPayload = (comments: any[]) => {
                 },
                 "width": "full",
                 "is_collapsible": true,
-                "default_collapsed": false,
+                "default_collapsed": true,
                 "child_blocks": comments.map(comment => ({
                     "type": "callout",
                     "background_color": "gray",
@@ -101,7 +101,7 @@ const getPayload = (comments: any[]) => {
                                     "text": "View",
                                     "emoji": true
                                 },
-                                "url": comment.url
+                                "url": comment.html_url
                             }
                         }
                     ]
