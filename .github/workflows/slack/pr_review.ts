@@ -49,13 +49,19 @@ const send = async () => {
         if (reply_to_id) {
             const repo_owner = github.repository_owner
             const repo_name = github.event.repository.name
+            const pr_number = github.event.pull_request.number
 
-            const url = `https://api.github.com/repos/${repo_owner}/${repo_name}/pulls/comments/${reply_to_id}`
-            const parent_res = await ghGet(url)
+            const url = `https://api.github.com/repos/${repo_owner}/${repo_name}/pulls/${pr_number}/comments?per_page=100`
+            const res = await ghGet(url)
 
-            if (parent_res.ok) {
-                const parent = await parent_res.json()
-                if (parent.user && parent.body != null) {
+            if (res.ok) {
+                const all: any[] = await res.json()
+                // in_reply_to_id = thread root; want newest reply before mine
+                const parent = all
+                    .filter(c => (c.id === reply_to_id || c.in_reply_to_id === reply_to_id) && c.id !== github.event.comment.id)
+                    .sort((a, b) => a.id - b.id)
+                    .at(-1)
+                if (parent?.user && parent.body != null) {
                     event.replyTo = { author: parent.user.login, body: parent.body }
                 }
             }
@@ -77,6 +83,9 @@ const send = async () => {
 
         comments = await comments_res.json()
     }
+
+    // lone bodyless comment = single/reply wrapper, already sent; batches (>1) kept
+    if (github.event.review.state === "commented" && !github.event.review.body && Array.isArray(comments) && comments.length === 1) process.exit(0)
 
     const event = reviewEventFromContext(github)
     return post(new MessageBuilder(reviewSummary(event))
