@@ -51,7 +51,7 @@ export interface CalloutBlock {
     child_blocks: Block[]
 }
 
-export type Block = SectionBlock | ContextBlock | ContainerBlock | CalloutBlock
+export type Block = SectionBlock | ContextBlock | ContainerBlock | CalloutBlock | ImageElement
 
 export interface Message {
     blocks: Block[]

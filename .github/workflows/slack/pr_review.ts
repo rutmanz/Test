@@ -1,4 +1,4 @@
-import { MessageBuilder, reviewCommentsFromApi, reviewEventFromContext, reviewNotification, reviewSummary } from "./index";
+import { MessageBuilder, Message, commentNotification, commentSummary, issueCommentEventFromContext, reviewCommentEventFromContext, reviewCommentsFromApi, reviewEventFromContext, reviewNotification, reviewSummary } from "./index";
 
 const webhookUrl = process.env.SLACK_WEBHOOK_URL;
 const github = JSON.parse(process.env.GITHUB_DATA ?? "{}")
@@ -15,7 +15,30 @@ if (github.event.action === "edited") process.exit(0)
 
 // States: changes_requested, approved, commented, dismissed, pending
 
+const post = async (message: Message) => {
+    const slack_res = await fetch(webhookUrl, {
+        method: 'POST',
+        body: JSON.stringify(message),
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+
+    console.log("Slack notification sent:", await slack_res.text())
+}
+
 const send = async () => {
+    if (github.event_name === "issue_comment") {
+        if (!github.event.issue.pull_request) process.exit(0)
+        const event = issueCommentEventFromContext(github)
+        return post(new MessageBuilder(commentSummary(event)).add(...commentNotification(event)).build())
+    }
+
+    if (github.event_name === "pull_request_review_comment") {
+        const event = reviewCommentEventFromContext(github)
+        return post(new MessageBuilder(commentSummary(event)).add(...commentNotification(event)).build())
+    }
+
     let comments;
 
     if (github.event.action !== "dismissed") {
@@ -41,19 +64,9 @@ const send = async () => {
     }
 
     const event = reviewEventFromContext(github)
-    const message = new MessageBuilder(reviewSummary(event))
+    return post(new MessageBuilder(reviewSummary(event))
         .add(...reviewNotification(event, reviewCommentsFromApi(comments ?? [])))
-        .build()
-
-    const slack_res = await fetch(webhookUrl, {
-        method: 'POST',
-        body: JSON.stringify(message),
-        headers: {
-            'Content-Type': 'application/json'
-        }
-    })
-
-    console.log("Slack notification sent:", await slack_res.text())
+        .build())
 }
 
 send()

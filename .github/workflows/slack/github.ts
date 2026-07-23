@@ -4,6 +4,7 @@ import {
     container,
     context,
     image,
+    ImageElement,
     mrkdwn,
     section,
     titleCase,
@@ -46,6 +47,18 @@ export interface ReviewEvent {
     actor: Actor
     pr: PullRequest
     review: ReviewInfo
+}
+
+export interface CommentTarget {
+    number: number
+    title: string
+    author: string
+}
+
+export interface CommentEvent {
+    actor: Actor
+    target: CommentTarget
+    comment: { body: string; htmlUrl: string; path?: string }
 }
 
 /**
@@ -96,6 +109,40 @@ export const reviewEventFromContext = (github: any): ReviewEvent => ({
  */
 export const reviewCommentsFromApi = (comments: any[]): ReviewComment[] =>
     comments.map(c => ({ path: c.path, body: c.body, htmlUrl: c.html_url ?? "" }))
+
+/**
+ * Maps an issue_comment context (PR conversation comment) to a CommentEvent
+ *
+ * @return CommentEvent
+ */
+export const issueCommentEventFromContext = (github: any): CommentEvent => ({
+    actor: { login: github.actor, id: github.actor_id },
+    target: {
+        number: github.event.issue.number,
+        title: github.event.issue.title,
+        author: github.event.issue.user.login,
+    },
+    comment: { body: github.event.comment.body, htmlUrl: github.event.comment.html_url },
+})
+
+/**
+ * Maps a pull_request_review_comment context (standalone inline comment) to a CommentEvent
+ *
+ * @return CommentEvent
+ */
+export const reviewCommentEventFromContext = (github: any): CommentEvent => ({
+    actor: { login: github.actor, id: github.actor_id },
+    target: {
+        number: github.event.pull_request.number,
+        title: github.event.pull_request.title,
+        author: github.event.pull_request.user.login,
+    },
+    comment: {
+        body: github.event.comment.body,
+        htmlUrl: github.event.comment.html_url,
+        path: github.event.comment.path,
+    },
+})
 
 const ICON_BASE = "https://github.com/synthesis-adsk/github-icons/blob/main/icons"
 
@@ -163,6 +210,47 @@ export const prSummary = (e: PrEvent): string => `${e.actor.login}: PR #${e.pr.n
 export const reviewSummary = (e: ReviewEvent): string => `${e.actor.login}: ${reviewTitle(e)}`
 
 /**
+ * Builds the comment container title line
+ *
+ * @return string
+ */
+const commentTitle = (e: CommentEvent): string =>
+    `Comment - #${e.target.number} ${e.target.title} (${e.target.author})`
+
+/**
+ * Builds the message text fallback for a comment event
+ *
+ * @return string
+ */
+export const commentSummary = (e: CommentEvent): string => `${e.actor.login}: ${commentTitle(e)}`
+
+interface ParsedBody {
+    text: string
+    images: ImageElement[]
+}
+
+const IMG_MD = /!\[([^\]]*)\]\(\s*<?([^)>\s]+)>?(?:\s+["'][^"']*["'])?\s*\)/g
+const IMG_TAG = /<img\b[^>]*?\bsrc=["']([^"']+)["'][^>]*>/gi
+const IMG_URL = /https?:\/\/[^\s)]+\.(?:png|jpe?g|gif|webp)(?:\?[^\s)]*)?/gi
+const IMG_ALT = /\balt=["']([^"']*)["']/i
+
+/**
+ * Splits a body into text and image blocks, extracting markdown images,
+ * <img> tags, then bare image URLs
+ *
+ * @return ParsedBody
+ */
+const parseImages = (body: string): ParsedBody => {
+    const images: ImageElement[] = []
+    const text = body
+        .replace(IMG_MD, (_m, alt, url) => (images.push(image(url, alt || "image")), ""))
+        .replace(IMG_TAG, (m, url) => (images.push(image(url, m.match(IMG_ALT)?.[1] || "image")), ""))
+        .replace(IMG_URL, url => (images.push(image(url, "image")), ""))
+        .trim()
+    return { text, images }
+}
+
+/**
  * Renders the Jira section, scanning title then body for a SYNTH ticket
  *
  * @return Block
@@ -177,6 +265,17 @@ const jiraSection = (pr: PullRequest): Block => {
 }
 
 /**
+ * Renders the PR body as a text section plus any inline images
+ *
+ * @return Block[]
+ */
+const prBodyBlocks = (body: string | null): Block[] => {
+    if (!body) return []
+    const { text, images } = parseImages(body)
+    return [...(text ? [section(mrkdwn(text))] : []), ...images]
+}
+
+/**
  * Renders the Slack block for a PR opened/closed/merged notification
  *
  * @return Block
@@ -187,7 +286,7 @@ export const prNotification = (e: PrEvent): Block =>
         title: `#${e.pr.number} - ${e.pr.title}`,
         subtitle: `${e.pr.draft ? "Draft " : ""}${titleCase(e.action)} by ${e.actor.login}`,
         icon: image(prIconUrl(e), `Pull Request ${titleCase(e.action)}`),
-        child_blocks: [jiraSection(e.pr)],
+        child_blocks: [...prBodyBlocks(e.pr.body), jiraSection(e.pr)],
     })
 
 /**
@@ -206,10 +305,15 @@ const attribution = (actor: Actor): Block =>
  *
  * @return Block[]
  */
-const commentBlock = (actor: Actor, c: ReviewComment): Block[] => [
-    section(mrkdwn(`*File: _${c.path}_*\n\n${c.body}`), button("View", c.htmlUrl)),
-    attribution(actor),
-]
+const commentBlock = (actor: Actor, c: ReviewComment): Block[] => {
+    const { text, images } = parseImages(c.body)
+    const header = `*File: _${c.path}_*`
+    return [
+        section(mrkdwn(text ? `${header}\n\n${text}` : header), button("View", c.htmlUrl)),
+        ...images,
+        attribution(actor),
+    ]
+}
 
 /**
  * Renders the collapsible container grouping all review comments
@@ -231,16 +335,47 @@ const commentGroup = (actor: Actor, comments: ReviewComment[]): Block =>
  *
  * @return Block[]
  */
-export const reviewNotification = (e: ReviewEvent, comments: ReviewComment[]): Block[] => [
-    container({
-        width: "full",
-        title: reviewTitle(e),
-        subtitle: `${titleCase(e.review.state)} by ${e.actor.login}`,
-        icon: image(reviewIconUrl(e.review.state), `Review ${titleCase(e.review.state)}`),
-        child_blocks: [
-            section(mrkdwn(e.review.body ?? "_No body provided_"), button("Visit", e.review.htmlUrl)),
-        ],
-    }),
-    ...(comments.length > 0 ? [commentGroup(e.actor, comments)] : []),
-    attribution(e.actor),
-]
+export const reviewNotification = (e: ReviewEvent, comments: ReviewComment[]): Block[] => {
+    const { text, images } = e.review.body ? parseImages(e.review.body) : { text: "", images: [] }
+    return [
+        container({
+            width: "full",
+            title: reviewTitle(e),
+            subtitle: `${titleCase(e.review.state)} by ${e.actor.login}`,
+            icon: image(reviewIconUrl(e.review.state), `Review ${titleCase(e.review.state)}`),
+            child_blocks: [
+                section(mrkdwn(text || "_No body provided_"), button("Visit", e.review.htmlUrl)),
+                ...images,
+            ],
+        }),
+        ...(comments.length > 0 ? [commentGroup(e.actor, comments)] : []),
+        attribution(e.actor),
+    ]
+}
+
+/**
+ * Renders the Slack blocks for a PR comment notification: container +
+ * attribution. Shows the file header for inline comments
+ *
+ * @return Block[]
+ */
+export const commentNotification = (e: CommentEvent): Block[] => {
+    const { text, images } = parseImages(e.comment.body)
+    const header = e.comment.path ? `*File: _${e.comment.path}_*` : ""
+    const bodyText = header
+        ? (text ? `${header}\n\n${text}` : header)
+        : (text || "_No body provided_")
+    return [
+        container({
+            width: "full",
+            title: commentTitle(e),
+            subtitle: `Comment by ${e.actor.login}`,
+            icon: image(REVIEW_ICONS.commented, "Comment"),
+            child_blocks: [
+                section(mrkdwn(bodyText), button("Visit", e.comment.htmlUrl)),
+                ...images,
+            ],
+        }),
+        attribution(e.actor),
+    ]
+}
