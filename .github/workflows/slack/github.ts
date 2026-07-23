@@ -185,8 +185,8 @@ export const prNotification = (e: PrEvent): Block =>
     container({
         width: "full",
         title: `#${e.pr.number} - ${e.pr.title}`,
-        subtitle: `${e.pr.draft ? "Draft " : ""}${e.action} by ${e.actor.login}`,
-        icon: image(prIconUrl(e), `Pull Request ${e.action}`),
+        subtitle: `${e.pr.draft ? "Draft " : ""}${titleCase(e.action)} by ${e.actor.login}`,
+        icon: image(prIconUrl(e), `Pull Request ${titleCase(e.action)}`),
         child_blocks: [jiraSection(e.pr)],
     })
 
