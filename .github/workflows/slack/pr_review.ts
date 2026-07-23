@@ -27,6 +27,14 @@ const post = async (message: Message) => {
     console.log("Slack notification sent:", await slack_res.text())
 }
 
+const ghGet = (url: string) => fetch(url, {
+    headers: {
+        Authorization: `Bearer ${github.token}`,
+        Accept: "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2026-03-10"
+    }
+})
+
 const send = async () => {
     if (github.event_name === "issue_comment") {
         if (!github.event.issue.pull_request) process.exit(0)
@@ -36,29 +44,36 @@ const send = async () => {
 
     if (github.event_name === "pull_request_review_comment") {
         const event = reviewCommentEventFromContext(github)
+
+        const reply_to_id = github.event.comment.in_reply_to_id
+        if (reply_to_id) {
+            const repo_owner = github.repository_owner
+            const repo_name = github.event.repository.name
+
+            const url = `https://api.github.com/repos/${repo_owner}/${repo_name}/pulls/comments/${reply_to_id}`
+            const parent_res = await ghGet(url)
+
+            if (parent_res.ok) {
+                const parent = await parent_res.json()
+                if (parent.user && parent.body != null) {
+                    event.replyTo = { author: parent.user.login, body: parent.body }
+                }
+            }
+        }
+
         return post(new MessageBuilder(commentSummary(event)).add(...commentNotification(event)).build())
     }
 
     let comments;
 
     if (github.event.action !== "dismissed") {
-        // get comments
         const repo_owner = github.repository_owner
         const repo_name = github.event.repository.name
         const pr_number = github.event.pull_request.number
         const review_id = github.event.review.id
 
         const url = `https://api.github.com/repos/${repo_owner}/${repo_name}/pulls/${pr_number}/reviews/${review_id}/comments?per_page=100`
-        const comments_res = await fetch(
-            url,
-            {
-                headers: {
-                    Authorization: `Bearer ${github.token}`,
-                    Accept: "application/vnd.github+json",
-                    "X-GitHub-Api-Version": "2026-03-10"
-                }
-            }
-        )
+        const comments_res = await ghGet(url)
 
         comments = await comments_res.json()
     }

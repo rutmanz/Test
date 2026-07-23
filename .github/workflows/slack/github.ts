@@ -35,6 +35,7 @@ export interface ReviewComment {
     path: string
     body: string
     htmlUrl: string
+    diffHunk?: string
 }
 
 export interface PrEvent {
@@ -58,7 +59,8 @@ export interface CommentTarget {
 export interface CommentEvent {
     actor: Actor
     target: CommentTarget
-    comment: { body: string; htmlUrl: string; path?: string }
+    comment: { body: string; htmlUrl: string; path?: string; diffHunk?: string }
+    replyTo?: { author: string; body: string }
 }
 
 /**
@@ -108,7 +110,7 @@ export const reviewEventFromContext = (github: any): ReviewEvent => ({
  * @return ReviewComment[]
  */
 export const reviewCommentsFromApi = (comments: any[]): ReviewComment[] =>
-    comments.map(c => ({ path: c.path, body: c.body, htmlUrl: c.html_url ?? "" }))
+    comments.map(c => ({ path: c.path, body: c.body, htmlUrl: c.html_url ?? "", diffHunk: c.diff_hunk }))
 
 /**
  * Maps an issue_comment context (PR conversation comment) to a CommentEvent
@@ -141,6 +143,7 @@ export const reviewCommentEventFromContext = (github: any): CommentEvent => ({
         body: github.event.comment.body,
         htmlUrl: github.event.comment.html_url,
         path: github.event.comment.path,
+        diffHunk: github.event.comment.diff_hunk,
     },
 })
 
@@ -250,6 +253,16 @@ const parseImages = (body: string): ParsedBody => {
     return { text, images }
 }
 
+const SUGGESTION = /```suggestion\r?\n(.*?)```/gs
+
+/**
+ * Relabels GitHub ```suggestion blocks as a plain labelled code block
+ *
+ * @return string
+ */
+const formatSuggestions = (text: string): string =>
+    text.replace(SUGGESTION, (_m, code) => "*Suggested change:*\n```\n" + code + "```")
+
 /**
  * Renders the Jira section, scanning title then body for a SYNTH ticket
  *
@@ -308,8 +321,10 @@ const attribution = (actor: Actor): Block =>
 const commentBlock = (actor: Actor, c: ReviewComment): Block[] => {
     const { text, images } = parseImages(c.body)
     const header = `*File: _${c.path}_*`
+    const hunk = c.diffHunk ? "```\n" + c.diffHunk + "\n```" : ""
+    const body = formatSuggestions(text)
     return [
-        section(mrkdwn(text ? `${header}\n\n${text}` : header), button("View", c.htmlUrl)),
+        section(mrkdwn([header, hunk, body].filter(Boolean).join("\n\n")), button("View", c.htmlUrl)),
         ...images,
         attribution(actor),
     ]
@@ -362,14 +377,16 @@ export const reviewNotification = (e: ReviewEvent, comments: ReviewComment[]): B
 export const commentNotification = (e: CommentEvent): Block[] => {
     const { text, images } = parseImages(e.comment.body)
     const header = e.comment.path ? `*File: _${e.comment.path}_*` : ""
-    const bodyText = header
-        ? (text ? `${header}\n\n${text}` : header)
-        : (text || "_No body provided_")
+    const hunk = e.comment.diffHunk ? "```\n" + e.comment.diffHunk + "\n```" : ""
+    const quote = e.replyTo ? e.replyTo.body.split("\n").map(l => "> " + l).join("\n") : ""
+    const parts = [header, hunk, quote, formatSuggestions(text)].filter(Boolean)
+    const bodyText = parts.length ? parts.join("\n\n") : "_No body provided_"
+    const subtitle = e.replyTo ? `${e.actor.login} replied to ${e.replyTo.author}` : `Comment by ${e.actor.login}`
     return [
         container({
             width: "full",
             title: commentTitle(e),
-            subtitle: `Comment by ${e.actor.login}`,
+            subtitle,
             icon: image(REVIEW_ICONS.commented, "Comment"),
             child_blocks: [
                 section(mrkdwn(bodyText), button("Visit", e.comment.htmlUrl)),
